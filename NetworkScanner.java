@@ -1,38 +1,94 @@
+import java.awt.*;
 import java.net.InetAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 
 public class NetworkScanner {
 
-    public static void main(String[] args) {
+    private DefaultTableModel tableModel;
 
-        try {
+    public NetworkScanner() {
 
-            // Get local device IP
-            InetAddress localHost = InetAddress.getLocalHost();
-            String localIP = localHost.getHostAddress();
+        JFrame frame = new JFrame("WiFi Network Scanner");
+        frame.setSize(500, 400);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLayout(new BorderLayout());
 
-            System.out.println("Your IP Address: " + localIP);
+        JLabel title = new JLabel("Local Network Device Scanner", JLabel.CENTER);
+        title.setFont(new Font("Arial", Font.BOLD, 18));
 
-            // Extract network prefix (e.g. 192.168.1.)
-            String network = localIP.substring(0, localIP.lastIndexOf(".") + 1);
+        JButton scanButton = new JButton("Start Scan");
 
-            System.out.println("Scanning network: " + network + "0 - " + network + "255");
-            System.out.println("Devices found:\n");
+        tableModel = new DefaultTableModel();
+        tableModel.addColumn("IP Address");
+        tableModel.addColumn("Host Name");
 
-            // Scan 1–254
-            for (int i = 1; i < 255; i++) {
+        JTable table = new JTable(tableModel);
 
-                String host = network + i;
-                InetAddress address = InetAddress.getByName(host);
+        JScrollPane scrollPane = new JScrollPane(table);
 
-                if (address.isReachable(100)) {
-                    System.out.println(host + " is connected (" + address.getHostName() + ")");
+        frame.add(title, BorderLayout.NORTH);
+        frame.add(scrollPane, BorderLayout.CENTER);
+        frame.add(scanButton, BorderLayout.SOUTH);
+
+        scanButton.addActionListener(e -> startScan());
+
+        frame.setVisible(true);
+    }
+
+    private void startScan() {
+
+        tableModel.setRowCount(0);
+
+        new Thread(() -> {
+
+            try {
+
+                InetAddress localhost = InetAddress.getLocalHost();
+                String localIP = localhost.getHostAddress();
+
+                String network = localIP.substring(0, localIP.lastIndexOf(".") + 1);
+
+                ExecutorService executor = Executors.newFixedThreadPool(50);
+
+                for (int i = 1; i <= 254; i++) {
+
+                    final String host = network + i;
+
+                    executor.submit(() -> {
+
+                        try {
+
+                            InetAddress address = InetAddress.getByName(host);
+
+                            if (address.isReachable(200)) {
+
+                                String hostname = address.getCanonicalHostName();
+
+                                SwingUtilities.invokeLater(() -> {
+                                    tableModel.addRow(new Object[]{host, hostname});
+                                });
+
+                            }
+
+                        } catch (Exception ignored) {
+                        }
+
+                    });
                 }
+
+                executor.shutdown();
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
 
-            System.out.println("\nScan completed.");
+        }).start();
+    }
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public static void main(String[] args) {
+        new NetworkScanner();
     }
 }
